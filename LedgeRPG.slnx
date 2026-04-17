@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="../LedgeBoardGame/MagiGameServer.Contracts/MagiGameServer.Contracts.csproj" />
+  <Project Path="LedgeRPG.Adapter.Tests/LedgeRPG.Adapter.Tests.csproj" />
+  <Project Path="LedgeRPG.Adapter/LedgeRPG.Adapter.csproj" />
+  <Project Path="LedgeRPG.Core.Tests/LedgeRPG.Core.Tests.csproj" />
+  <Project Path="LedgeRPG.Core/LedgeRPG.Core.csproj" />
+</Solution>

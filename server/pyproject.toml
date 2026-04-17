@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ledgerpg"
+version = "0.1.0"
+description = "LedgeRPG MVP server for the MAGUS+HERMES AGI 2026 paper experiment"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "GPL-3.0-or-later"}
+authors = [{name = "Magi-AGI"}]
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["ledgerpg*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
