@@ -8,7 +8,7 @@ namespace Magi.LedgeRPG
     /// Single-entry-point MonoBehaviour for the paper-mirror scene.
     /// Attach to any GameObject in an otherwise-empty scene and press Play:
     /// the bootstrap builds the hex grid, agent, and HUD at runtime, positions
-    /// the main camera, and routes keyboard input to World.ApplyAction.
+    /// the main camera, and routes keyboard input through IRpgActionSubmitter.
     public sealed class LedgeRPGBootstrap : MonoBehaviour
     {
         [Header("Seeding (mirrors paper-server defaults)")]
@@ -31,7 +31,7 @@ namespace Magi.LedgeRPG
             go.AddComponent<LedgeRPGBootstrap>();
         }
 
-        private World _world;
+        private IRpgActionSubmitter _submitter;
         private HexGridRenderer _renderer;
         private AgentView _agent;
         private HudView _hud;
@@ -61,11 +61,13 @@ namespace Magi.LedgeRPG
 
         private void NewRun()
         {
-            _world = new World(Seed, GridSize, FoodCount, ObstacleCount, StepLimit);
-            _renderer.Build(_world);
-            _renderer.MarkVisited(_world.AgentPos);
-            _agent.SetPosition(_world.AgentPos);
-            _hud.Refresh(_world);
+            _submitter = new LocalRpgActionSubmitter(
+                new World(Seed, GridSize, FoodCount, ObstacleCount, StepLimit));
+            var world = _submitter.World;
+            _renderer.Build(world);
+            _renderer.MarkVisited(world.AgentPos);
+            _agent.SetPosition(world.AgentPos);
+            _hud.Refresh(world);
             PositionCamera();
         }
 
@@ -73,7 +75,7 @@ namespace Magi.LedgeRPG
         {
             var cam = Camera.main;
             if (cam == null) return;
-            var centroid = _renderer.GridCentroid(_world.GridSize);
+            var centroid = _renderer.GridCentroid(_submitter.World.GridSize);
             float span = GridSize * TileSize;
             cam.transform.SetPositionAndRotation(
                 centroid + new Vector3(0f, span * 1.5f, -span * 0.85f),
@@ -83,9 +85,9 @@ namespace Magi.LedgeRPG
 
         private void Update()
         {
-            if (_world == null) return;
+            if (_submitter == null) return;
 
-            if (!_world.Done)
+            if (!_submitter.World.Done)
             {
                 var action = KeyboardInputHandler.ReadActionThisFrame();
                 if (action.HasValue) TryApply(action.Value);
@@ -103,12 +105,13 @@ namespace Magi.LedgeRPG
         {
             try
             {
-                var deltas = _world.ApplyAction(action);
+                var deltas = _submitter.Submit(action);
+                var world = _submitter.World;
                 foreach (var d in deltas)
                     if (d is TileDiscoveredDelta td) _renderer.MarkVisited(td.At);
-                _renderer.Refresh(_world);
-                _agent.SetPosition(_world.AgentPos);
-                _hud.Refresh(_world);
+                _renderer.Refresh(world);
+                _agent.SetPosition(world.AgentPos);
+                _hud.Refresh(world);
             }
             catch (InvalidActionException)
             {
