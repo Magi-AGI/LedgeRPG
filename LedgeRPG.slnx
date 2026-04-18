@@ -6,4 +6,6 @@
   <Project Path="LedgeRPG.Core/LedgeRPG.Core.csproj" />
   <Project Path="LedgeRPG.Scaled.Tests/LedgeRPG.Scaled.Tests.csproj" />
   <Project Path="LedgeRPG.Scaled/LedgeRPG.Scaled.csproj" />
+  <Project Path="LedgeRPG.Lattice.Tests/LedgeRPG.Lattice.Tests.csproj" />
+  <Project Path="LedgeRPG.Lattice/LedgeRPG.Lattice.csproj" />
 </Solution>
