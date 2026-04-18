@@ -4,17 +4,17 @@ using UnityEngine;
 
 namespace Magi.LedgeRPG
 {
-    /// Spawns one GameObject per tocta in a LatticeWorld, sharing a single
-    /// ToctaMesh and material across every cell. State is conveyed per-instance
-    /// via MaterialPropertyBlocks — agent highlight and passable/blocked recolor
-    /// don't need to touch geometry or allocate materials.
+    /// Spawns one GameObject per cell sharing a single ToctaMesh and material
+    /// across every instance. Two build paths:
+    ///   • Build(LatticeWorld)                    — render the scale-0 source.
+    ///   • BuildScale(aggregates, scaleMultiplier) — render a projected layer
+    ///     at scale N, with each parent-tocta positioned at its coord scaled by
+    ///     scaleMultiplier = factor^N and sized to match.
     ///
-    /// Rendering choice: every cell is drawn, not just blocked ones. Passable
-    /// cells are semi-transparent so the lattice structure reads; blocked cells
-    /// are opaque so walls punch through. This is the cheapest way to confirm
-    /// the tocta geometry tiles correctly — a production renderer would either
-    /// hide passable cells entirely or use GPU instancing with a DrawMeshInstanced
-    /// batch instead of one GameObject per cell.
+    /// Rebuild-on-change (no partial refresh): zoom swaps the full set cheaply,
+    /// and the spike has no in-place mutation yet. Once movement wires up at
+    /// scale 0 we can bring back a Refresh path to avoid respawning 216 cells
+    /// on every step.
     public sealed class LatticeRenderer : MonoBehaviour
     {
         private static readonly Color PassableColor = new Color(0.90f, 0.85f, 0.70f, 0.25f);
@@ -27,51 +27,76 @@ namespace Magi.LedgeRPG
         private Mesh _sharedMesh;
         private Material _opaqueMaterial;
         private Material _transparentMaterial;
-        private readonly Dictionary<ToctaCoord, Renderer> _cells =
-            new Dictionary<ToctaCoord, Renderer>();
 
         public void Build(LatticeWorld world)
         {
             Clear();
-            _sharedMesh          = ToctaMeshFactory.Build();
-            _opaqueMaterial      = CreateMaterial(transparent: false);
-            _transparentMaterial = CreateMaterial(transparent: true);
+            EnsureSharedAssets();
 
             foreach (var c in world.AllCoords())
             {
                 var (wx, wy, wz) = c.WorldPosition;
-                var go = new GameObject($"Tocta {c.X},{c.Y},{c.Z}");
-                go.transform.SetParent(transform, worldPositionStays: false);
-                go.transform.localPosition = new Vector3((float)wx, (float)wy, (float)wz);
-
-                var mf = go.AddComponent<MeshFilter>();
-                mf.sharedMesh = _sharedMesh;
-                var mr = go.AddComponent<MeshRenderer>();
-                mr.sharedMaterial =
-                    world.TypeAt(c) == ToctaType.Passable ? _transparentMaterial : _opaqueMaterial;
-                _cells[c] = mr;
+                bool passable = world.TypeAt(c) == ToctaType.Passable;
+                Color color = c.Equals(world.AgentPos)
+                    ? AgentColor
+                    : (passable ? PassableColor : BlockedColor);
+                SpawnTocta(
+                    new Vector3((float)wx, (float)wy, (float)wz),
+                    scale: 1f,
+                    passable: passable,
+                    color: color,
+                    name: $"Tocta {c.X},{c.Y},{c.Z}");
             }
-            Refresh(world);
         }
 
-        public void Refresh(LatticeWorld world)
+        public void BuildScale(IReadOnlyDictionary<ToctaCoord, ToctaAggregate> aggregates,
+                               double scaleMultiplier)
         {
-            var block = new MaterialPropertyBlock();
-            foreach (var kv in _cells)
+            Clear();
+            EnsureSharedAssets();
+
+            float sm = (float)scaleMultiplier;
+            foreach (var kv in aggregates)
             {
-                var coord = kv.Key;
-                Color color;
-                if (coord.Equals(world.AgentPos))
-                    color = AgentColor;
-                else if (world.TypeAt(coord) == ToctaType.Passable)
-                    color = PassableColor;
-                else
-                    color = BlockedColor;
-                block.Clear();
-                block.SetColor(BaseColorId, color);
-                block.SetColor(ColorId, color);
-                kv.Value.SetPropertyBlock(block);
+                var parent = kv.Key;
+                var agg = kv.Value;
+                var (wx, wy, wz) = parent.WorldPosition;
+                bool passable = agg.DominantType == ToctaType.Passable;
+                Color color = agg.HasAgent
+                    ? AgentColor
+                    : (passable ? PassableColor : BlockedColor);
+                SpawnTocta(
+                    new Vector3((float)(wx * sm), (float)(wy * sm), (float)(wz * sm)),
+                    scale: sm,
+                    passable: passable,
+                    color: color,
+                    name: $"Agg {parent.X},{parent.Y},{parent.Z}");
             }
+        }
+
+        private void SpawnTocta(Vector3 position, float scale, bool passable, Color color, string name)
+        {
+            var go = new GameObject(name);
+            go.transform.SetParent(transform, worldPositionStays: false);
+            go.transform.localPosition = position;
+            go.transform.localScale    = Vector3.one * scale;
+
+            var mf = go.AddComponent<MeshFilter>();
+            mf.sharedMesh = _sharedMesh;
+            var mr = go.AddComponent<MeshRenderer>();
+            mr.sharedMaterial = passable ? _transparentMaterial : _opaqueMaterial;
+
+            var block = new MaterialPropertyBlock();
+            block.SetColor(BaseColorId, color);
+            block.SetColor(ColorId, color);
+            mr.SetPropertyBlock(block);
+        }
+
+        private void EnsureSharedAssets()
+        {
+            if (_sharedMesh          == null) _sharedMesh          = ToctaMeshFactory.Build();
+            if (_opaqueMaterial      == null) _opaqueMaterial      = CreateMaterial(transparent: false);
+            if (_transparentMaterial == null) _transparentMaterial = CreateMaterial(transparent: true);
         }
 
         private static Material CreateMaterial(bool transparent)
@@ -80,9 +105,8 @@ namespace Magi.LedgeRPG
             var mat = new Material(shader) { enableInstancing = true };
             if (transparent)
             {
-                // URP Lit transparent setup: _Surface=1, blend src/dst, disable ZWrite, move to transparent queue.
                 mat.SetFloat("_Surface", 1f);
-                mat.SetFloat("_Blend",   0f); // alpha blend
+                mat.SetFloat("_Blend",   0f);
                 mat.SetFloat("_SrcBlend",     (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
                 mat.SetFloat("_DstBlend",     (float)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
                 mat.SetFloat("_ZWrite",       0f);
@@ -93,16 +117,18 @@ namespace Magi.LedgeRPG
             return mat;
         }
 
-        private void Clear()
+        public void Clear()
         {
             for (int i = transform.childCount - 1; i >= 0; --i)
                 Destroy(transform.GetChild(i).gameObject);
-            _cells.Clear();
+        }
+
+        private void OnDestroy()
+        {
+            Clear();
             if (_sharedMesh          != null) Destroy(_sharedMesh);
             if (_opaqueMaterial      != null) Destroy(_opaqueMaterial);
             if (_transparentMaterial != null) Destroy(_transparentMaterial);
         }
-
-        private void OnDestroy() => Clear();
     }
 }
