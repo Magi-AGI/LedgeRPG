@@ -24,6 +24,9 @@ namespace LedgeRPG.Adapter
         // a single instance is safely shared across all sessions of this game.
         public IRulesAdapter Rules { get; } = new LedgeRPGRulesAdapter();
 
+        public Type ActionType => typeof(RPGAction);
+        public Type StateType => typeof(RPGState);
+
         public object CreateInitialState(GameConfig config)
         {
             if (config == null) throw new ArgumentNullException(nameof(config));

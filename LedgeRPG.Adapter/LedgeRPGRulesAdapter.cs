@@ -81,6 +81,18 @@ namespace LedgeRPG.Adapter
             return unchecked((long)h);
         }
 
+        public override RPGState SnapshotState(RPGState state)
+        {
+            if (state == null) throw new ArgumentNullException(nameof(state));
+
+            // Identity snapshot is safe here: Apply clones state.World before
+            // mutating and wraps the clone in a new RPGState, so any RPGState
+            // Session stashes in its takeback log is never mutated after the
+            // fact. If RPGState ever exposes a mutable collection directly,
+            // switch this to a deep clone.
+            return state;
+        }
+
         public override RPGState ProjectStateFor(RPGState state, SeatId seat)
         {
             if (state == null) throw new ArgumentNullException(nameof(state));
