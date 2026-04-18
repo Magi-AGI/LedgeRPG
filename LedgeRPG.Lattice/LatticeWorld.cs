@@ -67,6 +67,49 @@ namespace LedgeRPG.Lattice
             AgentPos = allCoords[blockedCount];
         }
 
+        /// Test-only constructor for building a world with an explicit terrain
+        /// layout and agent placement. Used by movement tests that need a
+        /// known obstacle configuration rather than seeded-random terrain.
+        /// Not public — the seeded constructor is the production path.
+        internal LatticeWorld(int sizeX, int sizeY, int sizeZ, ToctaCoord agentPos, System.Collections.Generic.IEnumerable<ToctaCoord> blockedCoords)
+        {
+            if (sizeX <= 0) throw new ArgumentOutOfRangeException(nameof(sizeX));
+            if (sizeY <= 0) throw new ArgumentOutOfRangeException(nameof(sizeY));
+            if (sizeZ <= 0) throw new ArgumentOutOfRangeException(nameof(sizeZ));
+
+            Seed = 0;
+            SizeX = sizeX;
+            SizeY = sizeY;
+            SizeZ = sizeZ;
+
+            int total = sizeX * sizeY * sizeZ;
+            _cells = new Dictionary<ToctaCoord, ToctaType>(total);
+            for (int y = 0; y < sizeY; y++)
+                for (int x = 0; x < sizeX; x++)
+                    for (int z = 0; z < sizeZ; z++)
+                        _cells[new ToctaCoord(x, y, z)] = ToctaType.Passable;
+
+            int blockedCount = 0;
+            if (blockedCoords != null)
+            {
+                foreach (var b in blockedCoords)
+                {
+                    if (!_cells.ContainsKey(b))
+                        throw new ArgumentException($"Blocked coord {b} is out of bounds.", nameof(blockedCoords));
+                    if (_cells[b] == ToctaType.Blocked) continue;
+                    _cells[b] = ToctaType.Blocked;
+                    blockedCount++;
+                }
+            }
+            BlockedCount = blockedCount;
+
+            if (!_cells.ContainsKey(agentPos))
+                throw new ArgumentException($"Agent pos {agentPos} is out of bounds.", nameof(agentPos));
+            if (_cells[agentPos] != ToctaType.Passable)
+                throw new ArgumentException($"Agent pos {agentPos} must be passable.", nameof(agentPos));
+            AgentPos = agentPos;
+        }
+
         public bool InBounds(ToctaCoord c) =>
             c.X >= 0 && c.X < SizeX &&
             c.Y >= 0 && c.Y < SizeY &&
@@ -88,6 +131,35 @@ namespace LedgeRPG.Lattice
                 for (int x = 0; x < SizeX; x++)
                     for (int z = 0; z < SizeZ; z++)
                         yield return new ToctaCoord(x, y, z);
+        }
+
+        /// Scale-0 primitive step: move the agent to a face-adjacent target.
+        /// Returns AgentMovedDelta on success, MovementBlockedDelta otherwise.
+        /// The three rejection reasons (OutOfBounds, BlockedTerrain,
+        /// NotFaceAdjacent) are surfaced separately so UI / AI layers can give
+        /// the player different feedback without sniffing state.
+        ///
+        /// Higher-scale moves refine down to sequences of these primitives
+        /// through ScaledLattice.Apply — LatticeWorld doesn't know about scales.
+        public LatticeDelta TryStep(ToctaCoord target)
+        {
+            var from = AgentPos;
+            if (!IsFaceAdjacent(from, target))
+                return new MovementBlockedDelta(from, target, BlockReason.NotFaceAdjacent);
+            if (!InBounds(target))
+                return new MovementBlockedDelta(from, target, BlockReason.OutOfBounds);
+            if (TypeAt(target) != ToctaType.Passable)
+                return new MovementBlockedDelta(from, target, BlockReason.BlockedTerrain);
+
+            AgentPos = target;
+            return new AgentMovedDelta(from, target);
+        }
+
+        private static bool IsFaceAdjacent(ToctaCoord a, ToctaCoord b)
+        {
+            foreach (var n in ToctaNeighbors.FaceNeighbors(a))
+                if (n.Equals(b)) return true;
+            return false;
         }
 
         private static void Shuffle<T>(IList<T> list, Random rng)
