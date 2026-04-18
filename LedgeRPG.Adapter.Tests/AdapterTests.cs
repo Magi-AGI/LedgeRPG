@@ -38,6 +38,51 @@ namespace LedgeRPG.Adapter.Tests
         }
 
         [Fact]
+        public void SnapshotStateReturnsReferenceIdentity()
+        {
+            // Identity is safe because RPGState wraps World at internal
+            // visibility and Apply clones that World before mutating. If
+            // that invariant ever changes (mutable collection leaks onto
+            // RPGState's public surface, Apply stops cloning), this test
+            // forces the deep-clone decision to be deliberate rather than
+            // silent.
+            var module = new LedgeRPGGameModule();
+            var adapter = (IRulesAdapter<RPGState, RPGAction>)module.Rules;
+            var state = (RPGState)module.CreateInitialState(DefaultConfig);
+
+            var snapshot = ((RulesAdapterBase<RPGState, RPGAction>)adapter).SnapshotState(state);
+
+            Assert.Same(state, snapshot);
+        }
+
+        [Fact]
+        public void SnapshotTakenPreApplyStaysPreApplyValuesPostApply()
+        {
+            // The takeback-log invariant Session depends on: stash a
+            // SnapshotState result before Apply, advance the world, confirm
+            // the snapshot still reports pre-apply observables. If Apply
+            // ever mutates the input state instance, this test fails and
+            // SnapshotState has to start deep-cloning.
+            var module = new LedgeRPGGameModule();
+            var adapter = (IRulesAdapter<RPGState, RPGAction>)module.Rules;
+            var state = (RPGState)module.CreateInitialState(DefaultConfig);
+
+            var snapshot = ((RulesAdapterBase<RPGState, RPGAction>)adapter).SnapshotState(state);
+            int stepBefore = snapshot.Step;
+            double energyBefore = snapshot.Energy;
+            var posBefore = snapshot.AgentPos;
+            int foodBefore = snapshot.FoodRemaining;
+
+            adapter.Apply(state, new RPGAction(RPGActionKind.Rest), out var advanced);
+
+            Assert.Equal(stepBefore, snapshot.Step);
+            Assert.Equal(energyBefore, snapshot.Energy);
+            Assert.Equal(posBefore, snapshot.AgentPos);
+            Assert.Equal(foodBefore, snapshot.FoodRemaining);
+            Assert.NotSame(snapshot, advanced);
+        }
+
+        [Fact]
         public void ApplyReturnsAppliedOnValidAction()
         {
             var module = new LedgeRPGGameModule();
