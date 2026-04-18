@@ -1,4 +1,5 @@
 using LedgeRPG.Core.World;
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -6,7 +7,7 @@ namespace Magi.LedgeRPG
 {
     public sealed class HudView : MonoBehaviour
     {
-        private Text _text;
+        private TMP_Text _text;
 
         private void Awake()
         {
@@ -26,17 +27,29 @@ namespace Magi.LedgeRPG
             rt.anchoredPosition = new Vector2(16, -16);
             rt.sizeDelta = new Vector2(520, 220);
 
-            _text = textGo.AddComponent<Text>();
-            _text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            _text.fontSize = 16;
-            _text.color = Color.white;
-            _text.alignment = TextAnchor.UpperLeft;
-            _text.horizontalOverflow = HorizontalWrapMode.Overflow;
-            _text.verticalOverflow = VerticalWrapMode.Overflow;
+            var tmp = textGo.AddComponent<TextMeshProUGUI>();
+            tmp.fontSize = 16;
+            tmp.color = Color.white;
+            tmp.alignment = TextAlignmentOptions.TopLeft;
+            tmp.textWrappingMode = TextWrappingModes.NoWrap;
+            tmp.overflowMode = TextOverflowModes.Overflow;
 
-            var shadow = textGo.AddComponent<Shadow>();
-            shadow.effectColor = new Color(0, 0, 0, 0.8f);
-            shadow.effectDistance = new Vector2(1, -1);
+            // Outline keeps glyph edges readable over the hex grid; underlay
+            // replaces the old duplicate-GameObject drop shadow with a single
+            // shader pass. Both ride on the default LiberationSans SDF
+            // material that TMP Essentials ships.
+            tmp.outlineColor = new Color32(0, 0, 0, 255);
+            tmp.outlineWidth = 0.2f;
+
+            var mat = tmp.fontMaterial;
+            mat.EnableKeyword(ShaderUtilities.Keyword_Underlay);
+            mat.SetColor(ShaderUtilities.ID_UnderlayColor, new Color(0f, 0f, 0f, 0.8f));
+            mat.SetFloat(ShaderUtilities.ID_UnderlaySoftness, 0.3f);
+            mat.SetFloat(ShaderUtilities.ID_UnderlayDilate, 0.3f);
+            mat.SetFloat(ShaderUtilities.ID_UnderlayOffsetX, 1f);
+            mat.SetFloat(ShaderUtilities.ID_UnderlayOffsetY, -1f);
+
+            _text = tmp;
         }
 
         public void Refresh(World world)
