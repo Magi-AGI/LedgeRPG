@@ -368,13 +368,16 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Magi.LedgeRPG::Magi.LedgeRPG.LatticeBootstrap
   Seed: 42
-  SizeX: 6
-  SizeY: 6
-  SizeZ: 6
-  BlockedCount: 40
-  CameraDistance: 10
-  CameraHeight: 6
+  SizeX: 15
+  SizeY: 15
+  SizeZ: 15
+  BlockedCount: 800
+  ScaleFactor: 10
+  ScaleCount: 3
+  CameraDistance: 12
+  CameraHeight: 8
   CameraFov: 50
+  TransitionSeconds: 0.5
 --- !u!4 &2063324296
 Transform:
   m_ObjectHideFlags: 0
