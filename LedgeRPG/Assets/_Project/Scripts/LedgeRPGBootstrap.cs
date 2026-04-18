@@ -6,9 +6,10 @@ using UnityEngine;
 namespace Magi.LedgeRPG
 {
     /// Single-entry-point MonoBehaviour for the paper-mirror scene.
-    /// Attach to any GameObject in an otherwise-empty scene and press Play:
-    /// the bootstrap builds the hex grid, agent, and HUD at runtime, positions
-    /// the main camera, and routes keyboard input through IRpgActionSubmitter.
+    /// Drop onto a GameObject in LedgeRPGMain.unity (Main Camera + Directional
+    /// Light expected alongside) and press Play: the bootstrap builds the hex
+    /// grid, agent, and HUD at runtime, positions the main camera, and routes
+    /// keyboard input through IRpgActionSubmitter.
     public sealed class LedgeRPGBootstrap : MonoBehaviour
     {
         [Header("Seeding (mirrors paper-server defaults)")]
@@ -20,16 +21,6 @@ namespace Magi.LedgeRPG
 
         [Header("Rendering")]
         public float TileSize = 0.55f;
-
-        // Auto-spawn in any play-mode scene so the first draft works without a
-        // hand-wired scene. Remove this once a proper Main scene lands (M3+).
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
-        private static void AutoSpawn()
-        {
-            if (FindFirstObjectByType<LedgeRPGBootstrap>() != null) return;
-            var go = new GameObject("LedgeRPG");
-            go.AddComponent<LedgeRPGBootstrap>();
-        }
 
         private IRpgActionSubmitter _submitter;
         private HexGridRenderer _renderer;
