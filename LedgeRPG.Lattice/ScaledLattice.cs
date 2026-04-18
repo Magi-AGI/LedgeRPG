@@ -89,5 +89,106 @@ namespace LedgeRPG.Lattice
 
             return _cachedLayers[scale];
         }
+
+        /// Apply a scale-N face-traversal. At scale 0 this is a single primitive
+        /// step via <see cref="LatticeWorld.TryStep"/>. At higher scales the
+        /// agent walks scale-0-step by scale-0-step toward the target scale-N
+        /// parent's center, using a greedy closest-neighbor rule: at each step,
+        /// pick the passable face-neighbor whose world position is closest to
+        /// the target center, terminating when the agent's scale-N parent
+        /// equals the target (success) or no neighbor makes progress (blocked).
+        ///
+        /// The greedy walk is deliberately simple: the architectural claim under
+        /// test is that a (scale, faceIndex) action at any scale decomposes into
+        /// scale-0 primitives, not that the path is optimal. A-star or similar
+        /// is a Phase 3 problem if we find the greedy rule gets stuck too often
+        /// in realistic terrain.
+        ///
+        /// Invalidates the aggregate cache once at the end (not per primitive);
+        /// the action is the semantic unit even when it fans out into many
+        /// scale-0 steps, mirroring ScaledWorld.ApplyScale1's contract.
+        public IReadOnlyList<LatticeDelta> Apply(LatticeAction action)
+        {
+            if (action.Scale >= ScaleCount)
+                throw new ArgumentOutOfRangeException(nameof(action),
+                    $"Action scale {action.Scale} exceeds ScaleCount {ScaleCount}.");
+
+            var deltas = new List<LatticeDelta>();
+
+            var agentParent = LatticeProjections.ParentAt(Source.AgentPos, action.Scale, ScaleFactor);
+            ToctaCoord targetParent = default;
+            int idx = 0;
+            foreach (var n in ToctaNeighbors.FaceNeighbors(agentParent))
+            {
+                if (idx == action.FaceIndex) { targetParent = n; break; }
+                idx++;
+            }
+
+            if (action.Scale == 0)
+            {
+                deltas.Add(Source.TryStep(targetParent));
+                Invalidate();
+                return deltas;
+            }
+
+            // Target's world position in scale-0 edge units.
+            var (twx, twy, twz) = targetParent.WorldPosition;
+            double scaleMult = Math.Pow(ScaleFactor, action.Scale);
+            double targetWx = twx * scaleMult;
+            double targetWy = twy * scaleMult;
+            double targetWz = twz * scaleMult;
+
+            // Generous cap: BCC nearest-neighbor path between parent centers
+            // can take ~factor^scale steps; 4× that is enough slack for
+            // obstacle avoidance while still catching runaway loops.
+            int maxSteps = 4 * (int)scaleMult + 4;
+            for (int step = 0; step < maxSteps; step++)
+            {
+                var currentParent = LatticeProjections.ParentAt(Source.AgentPos, action.Scale, ScaleFactor);
+                if (currentParent.Equals(targetParent))
+                {
+                    Invalidate();
+                    return deltas;
+                }
+
+                double currentDistSq = DistSq(Source.AgentPos, targetWx, targetWy, targetWz);
+                ToctaCoord bestStep = default;
+                double bestDistSq = double.PositiveInfinity;
+
+                foreach (var candidate in ToctaNeighbors.FaceNeighbors(Source.AgentPos))
+                {
+                    if (!Source.InBounds(candidate)) continue;
+                    if (Source.TypeAt(candidate) != ToctaType.Passable) continue;
+                    double d = DistSq(candidate, targetWx, targetWy, targetWz);
+                    if (d < bestDistSq) { bestDistSq = d; bestStep = candidate; }
+                }
+
+                if (bestDistSq >= currentDistSq)
+                {
+                    deltas.Add(new MovementBlockedDelta(Source.AgentPos, targetParent, BlockReason.BlockedTerrain));
+                    Invalidate();
+                    return deltas;
+                }
+
+                var stepDelta = Source.TryStep(bestStep);
+                deltas.Add(stepDelta);
+                if (!(stepDelta is AgentMovedDelta))
+                {
+                    Invalidate();
+                    return deltas;
+                }
+            }
+
+            deltas.Add(new MovementBlockedDelta(Source.AgentPos, targetParent, BlockReason.BlockedTerrain));
+            Invalidate();
+            return deltas;
+        }
+
+        private static double DistSq(ToctaCoord c, double tx, double ty, double tz)
+        {
+            var (wx, wy, wz) = c.WorldPosition;
+            double dx = wx - tx, dy = wy - ty, dz = wz - tz;
+            return dx * dx + dy * dy + dz * dz;
+        }
     }
 }

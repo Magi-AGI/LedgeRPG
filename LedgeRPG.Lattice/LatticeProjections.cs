@@ -66,6 +66,22 @@ namespace LedgeRPG.Lattice
             return best;
         }
 
+        /// Walk the nearest-parent chain <paramref name="scale"/> times to find
+        /// the scale-N parent coord of a given scale-0 coord. Used by movement
+        /// code to resolve "which scale-N parent is the agent currently in?"
+        /// without scanning the whole aggregate dict.
+        ///
+        /// Scale 0 returns the input unchanged. Each step applies the same
+        /// parentScaleFactor — the per-level factor is uniform in this spike.
+        public static ToctaCoord ParentAt(ToctaCoord scale0Coord, int scale, int parentScaleFactor)
+        {
+            if (scale < 0) throw new ArgumentOutOfRangeException(nameof(scale));
+            var c = scale0Coord;
+            for (int i = 0; i < scale; i++)
+                c = NearestParent(c, parentScaleFactor);
+            return c;
+        }
+
         /// Project a scale-0 LatticeWorld up one scale. Each scale-0 cell
         /// contributes to exactly one scale-1 aggregate.
         public static IReadOnlyDictionary<ToctaCoord, ToctaAggregate> Project(
