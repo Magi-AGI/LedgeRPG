@@ -84,6 +84,13 @@ namespace LedgeRPG.Scaled
             return deltas;
         }
 
+        /// Manually bump the version counter. Use this when something external
+        /// has mutated <see cref="Source"/> directly (e.g., a pre-existing
+        /// submitter abstraction that owns the World) and projected views need
+        /// to rebuild on next access. Prefer <see cref="Apply"/> or
+        /// <see cref="ApplyScale1"/> when routing through this wrapper.
+        public void Invalidate() => _version++;
+
         /// Apply a scale-1 action by refining it into a scale-0 sequence and
         /// running each primitive through the source. All emitted deltas are
         /// returned in order; one version bump per call (not per primitive)
