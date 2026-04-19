@@ -6,11 +6,13 @@ namespace Magi.LedgeRPG
     /// Entry-point MonoBehaviour for the "walk on the lattice" demo.
     /// Spawns a LatticeWorld, renders every cell with a MeshCollider, and
     /// drops a CharacterController capsule above the lattice so gravity
-    /// lands it on top. WASD + mouse-look via WalkerCharacter.
+    /// lands it on top. WASD + mouse-look via WalkerCharacter; current
+    /// occupied ToctaCoord is projected from the capsule body center each
+    /// frame via ToctaCoord.FromWorldPosition and shown in the HUD.
     ///
-    /// This is Phase 1 of the input rework — continuous movement on
-    /// collision geometry. Occupancy (projecting the capsule's cell) and
-    /// 14-direction BCC face-adjacency game rules come in later phases.
+    /// Phase 1 (continuous movement on collision) + Phase 2 (cell
+    /// occupancy readout). Phase 3 — translating occupancy transitions
+    /// into 14-direction BCC face-adjacency game moves — is next.
     public sealed class WalkerBootstrap : MonoBehaviour
     {
         [Header("World")]
@@ -102,12 +104,23 @@ namespace Magi.LedgeRPG
             const int pad = 8;
             var style = new GUIStyle(GUI.skin.label) { fontSize = 14, normal = { textColor = Color.white } };
             GUI.Label(new Rect(pad, pad,       600, 22), "Walker demo — WASD move, mouse look, Space jump, Esc unlock cursor", style);
-            if (_character != null)
-            {
-                var p = _character.transform.position;
-                GUI.Label(new Rect(pad, pad + 22, 600, 22),
-                    $"Pos ({p.x:F2}, {p.y:F2}, {p.z:F2})", style);
-            }
+            if (_character == null) return;
+
+            var p = _character.transform.position;
+            // Sample at the capsule's body center (0.7 above feet) so the
+            // reported cell is the one containing the bulk of the character,
+            // not the one directly beneath their soles.
+            var body = p + Vector3.up * 0.7f;
+            var cell = ToctaCoord.FromWorldPosition(body.x, body.y, body.z);
+            string cellStatus = _world == null
+                ? ""
+                : !_world.InBounds(cell) ? "out of bounds"
+                    : _world.TypeAt(cell) == ToctaType.Passable ? "passable" : "blocked";
+
+            GUI.Label(new Rect(pad, pad + 22, 600, 22),
+                $"Pos ({p.x:F2}, {p.y:F2}, {p.z:F2})", style);
+            GUI.Label(new Rect(pad, pad + 44, 600, 22),
+                $"Cell ({cell.X},{cell.Y},{cell.Z})  {cellStatus}", style);
         }
     }
 }

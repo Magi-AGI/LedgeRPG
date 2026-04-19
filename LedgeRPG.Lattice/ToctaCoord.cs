@@ -34,6 +34,45 @@ namespace LedgeRPG.Lattice
             }
         }
 
+        /// Inverse of <see cref="WorldPosition"/>. Given a world-space point,
+        /// return the ToctaCoord whose truncated-octahedron Voronoi region
+        /// contains it — i.e. the "cell the point is inside" in BCC terms.
+        ///
+        /// BCC decomposes into two simple-cubic sublattices: the even-Y
+        /// cells sit at integer world coordinates, and the odd-Y cells at
+        /// (integer+0.5, integer+0.5, integer+0.5). The nearest lattice
+        /// center on either sublattice wins — that matches the BCC Voronoi
+        /// partition exactly because truncated octahedra tile space.
+        ///
+        /// Points on a Voronoi face are a measure-zero set and tie-break
+        /// toward the even sublattice, which is arbitrary but deterministic.
+        public static ToctaCoord FromWorldPosition(double worldX, double worldY, double worldZ)
+        {
+            // Even sublattice candidate: nearest integer world point.
+            // The corresponding cell has Y_cell = 2 * y_world.
+            double evXw = System.Math.Round(worldX);
+            double evYw = System.Math.Round(worldY);
+            double evZw = System.Math.Round(worldZ);
+            double edx = worldX - evXw, edy = worldY - evYw, edz = worldZ - evZw;
+            double evDistSq = edx * edx + edy * edy + edz * edz;
+
+            // Odd sublattice candidate: nearest half-integer world point.
+            // nearest half-integer to v = Round(v - 0.5) + 0.5.
+            double odXw = System.Math.Round(worldX - 0.5) + 0.5;
+            double odYw = System.Math.Round(worldY - 0.5) + 0.5;
+            double odZw = System.Math.Round(worldZ - 0.5) + 0.5;
+            double odx = worldX - odXw, ody = worldY - odYw, odz = worldZ - odZw;
+            double odDistSq = odx * odx + ody * ody + odz * odz;
+
+            if (evDistSq <= odDistSq)
+                return new ToctaCoord((int)evXw, (int)(2.0 * evYw), (int)evZw);
+
+            return new ToctaCoord(
+                (int)(odXw - 0.5),
+                (int)(2.0 * odYw),
+                (int)(odZw - 0.5));
+        }
+
         public bool Equals(ToctaCoord other) => X == other.X && Y == other.Y && Z == other.Z;
         public override bool Equals(object obj) => obj is ToctaCoord c && Equals(c);
         public override int GetHashCode()
