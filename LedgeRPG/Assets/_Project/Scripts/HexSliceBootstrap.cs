@@ -52,7 +52,7 @@ namespace Magi.LedgeRPG
 
         private LatticeWorld _world;
         private HexSliceRenderer _renderer;
-        private Mode _mode = Mode.SyntheticHex;
+        private Mode _mode = Mode.ThickSlab;
         private ToctaCoord _agent;
         private int _viewK;
         private Coroutine _stepAnim;
@@ -160,16 +160,20 @@ namespace Magi.LedgeRPG
 
         private static int PressedHexIndex(Keyboard kb)
         {
-            // QAZEDC around the hex: Q=NW, E=NE, A=W, D=E, Z=SW, C=SE.
-            // Order matches LatticeSlice111.HexNeighborDeltas:
-            //   0=(+1,0,-1) E, 1=(-1,0,+1) W, 2=(0,+2,-1) NE,
-            //   3=(-1,+2,0) NW, 4=(0,-2,+1) SW, 5=(+1,-2,0) SE.
-            if (kb.dKey.wasPressedThisFrame) return 0;
-            if (kb.aKey.wasPressedThisFrame) return 1;
-            if (kb.eKey.wasPressedThisFrame) return 2;
-            if (kb.qKey.wasPressedThisFrame) return 3;
-            if (kb.zKey.wasPressedThisFrame) return 4;
-            if (kb.cKey.wasPressedThisFrame) return 5;
+            // Mapping is camera-relative, not world-relative. The camera
+            // sits at roughly +X+Y+Z looking at the origin, so world +X
+            // projects to screen-LEFT. That inverts the naive "delta +X
+            // → D key" reading; the table below is what feels right at
+            // the keyboard. Indices match LatticeSlice111.HexNeighborDeltas:
+            //   0=(+1,0,-1) camera-left,       1=(-1,0,+1) camera-right,
+            //   2=(0,+2,-1) camera-upper-left, 3=(-1,+2,0) camera-upper-right,
+            //   4=(0,-2,+1) camera-lower-right,5=(+1,-2,0) camera-lower-left.
+            if (kb.aKey.wasPressedThisFrame) return 0;
+            if (kb.dKey.wasPressedThisFrame) return 1;
+            if (kb.qKey.wasPressedThisFrame) return 2;
+            if (kb.eKey.wasPressedThisFrame) return 3;
+            if (kb.cKey.wasPressedThisFrame) return 4;
+            if (kb.zKey.wasPressedThisFrame) return 5;
             return -1;
         }
 
