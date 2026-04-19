@@ -34,6 +34,9 @@ namespace Magi.LedgeRPG
         private Material _edgeMaterial;
 
         private readonly List<GameObject> _cells = new();
+        private readonly Dictionary<ToctaCoord, GameObject> _cellByCoord = new();
+        private LatticeWorld _worldRef;
+        private ToctaCoord _agentRef;
 
         /// When true, spawned cells get a MeshCollider using a
         /// triangles-only mesh (the faceted tocta without the edge-lines
@@ -48,6 +51,8 @@ namespace Magi.LedgeRPG
         {
             Clear();
             EnsureSharedAssets();
+            _worldRef = world;
+            _agentRef = agent;
 
             foreach (var c in visibleCells)
             {
@@ -56,8 +61,9 @@ namespace Magi.LedgeRPG
                 Color color = c.Equals(agent)
                     ? AgentColor
                     : (passable ? PassableColor : BlockedColor);
-                Spawn(new Vector3((float)wx, (float)wy, (float)wz), color, _opaqueMaterial,
-                      name: $"Cell {c.X},{c.Y},{c.Z}");
+                var go = Spawn(new Vector3((float)wx, (float)wy, (float)wz), color, _opaqueMaterial,
+                               name: $"Cell {c.X},{c.Y},{c.Z}");
+                _cellByCoord[c] = go;
             }
 
             if (ghostCells != null)
@@ -71,7 +77,38 @@ namespace Magi.LedgeRPG
             }
         }
 
-        private void Spawn(Vector3 position, Color color, Material faceMaterial, string name)
+        /// Move the agent highlight without rebuilding the whole mesh set.
+        /// Cells outside the currently-rendered visible set (e.g. when the
+        /// A/B demo has shifted its slab) are silently ignored — the caller
+        /// should Rebuild for a view change, not SetAgent.
+        public void SetAgent(ToctaCoord newAgent)
+        {
+            if (_worldRef == null) return;
+            if (_agentRef.Equals(newAgent)) return;
+
+            if (_cellByCoord.TryGetValue(_agentRef, out var oldGo) && oldGo != null)
+            {
+                bool passable = _worldRef.TypeAt(_agentRef) == ToctaType.Passable;
+                ApplyColor(oldGo, passable ? PassableColor : BlockedColor);
+            }
+            if (_cellByCoord.TryGetValue(newAgent, out var newGo) && newGo != null)
+                ApplyColor(newGo, AgentColor);
+
+            _agentRef = newAgent;
+        }
+
+        private static void ApplyColor(GameObject go, Color color)
+        {
+            var mr = go.GetComponent<MeshRenderer>();
+            if (mr == null) return;
+            var block = new MaterialPropertyBlock();
+            mr.GetPropertyBlock(block, 0);
+            block.SetColor(BaseColorId, color);
+            block.SetColor(ColorId, color);
+            mr.SetPropertyBlock(block, 0);
+        }
+
+        private GameObject Spawn(Vector3 position, Color color, Material faceMaterial, string name)
         {
             var go = new GameObject(name);
             go.transform.SetParent(transform, worldPositionStays: false);
@@ -101,6 +138,7 @@ namespace Magi.LedgeRPG
             mr.SetPropertyBlock(block, 0);
 
             _cells.Add(go);
+            return go;
         }
 
         private void EnsureSharedAssets()
@@ -152,6 +190,7 @@ namespace Magi.LedgeRPG
             for (int i = transform.childCount - 1; i >= 0; --i)
                 Destroy(transform.GetChild(i).gameObject);
             _cells.Clear();
+            _cellByCoord.Clear();
         }
 
         private void OnDestroy()
