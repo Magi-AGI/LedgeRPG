@@ -28,11 +28,18 @@ namespace Magi.LedgeRPG
         private static readonly int ColorId     = Shader.PropertyToID("_Color");
 
         private Mesh _sharedMesh;
+        private Mesh _collisionMesh;
         private Material _opaqueMaterial;
         private Material _ghostMaterial;
         private Material _edgeMaterial;
 
         private readonly List<GameObject> _cells = new();
+
+        /// When true, spawned cells get a MeshCollider using a
+        /// triangles-only mesh (the faceted tocta without the edge-lines
+        /// submesh). Off by default — the A/B slice demo doesn't need
+        /// collision; the walker demo does.
+        public bool AddColliders = false;
 
         public void Rebuild(LatticeWorld world,
                             IEnumerable<ToctaCoord> visibleCells,
@@ -80,6 +87,12 @@ namespace Magi.LedgeRPG
             block.SetColor(ColorId, color);
             mr.SetPropertyBlock(block, 0);
 
+            if (AddColliders)
+            {
+                var mc = go.AddComponent<MeshCollider>();
+                mc.sharedMesh = _collisionMesh;
+            }
+
             _cells.Add(go);
         }
 
@@ -89,6 +102,7 @@ namespace Magi.LedgeRPG
             if (_opaqueMaterial  == null) _opaqueMaterial  = CreateOpaqueMaterial();
             if (_ghostMaterial   == null) _ghostMaterial   = CreateTransparentMaterial();
             if (_edgeMaterial    == null) _edgeMaterial    = CreateEdgeMaterial();
+            if (AddColliders && _collisionMesh == null) _collisionMesh = ToctaMeshFactory.Build();
         }
 
         private static Material CreateOpaqueMaterial()
@@ -137,6 +151,7 @@ namespace Magi.LedgeRPG
         {
             Clear();
             if (_sharedMesh     != null) Destroy(_sharedMesh);
+            if (_collisionMesh  != null) Destroy(_collisionMesh);
             if (_opaqueMaterial != null) Destroy(_opaqueMaterial);
             if (_ghostMaterial  != null) Destroy(_ghostMaterial);
             if (_edgeMaterial   != null) Destroy(_edgeMaterial);
