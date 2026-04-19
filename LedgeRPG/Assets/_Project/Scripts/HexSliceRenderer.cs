@@ -35,6 +35,7 @@ namespace Magi.LedgeRPG
 
         private readonly List<GameObject> _cells = new();
         private readonly Dictionary<ToctaCoord, GameObject> _cellByCoord = new();
+        private readonly HashSet<ToctaCoord> _highlightedCandidates = new();
         private LatticeWorld _worldRef;
         private ToctaCoord _agentRef;
 
@@ -95,6 +96,34 @@ namespace Magi.LedgeRPG
                 ApplyColor(newGo, AgentColor);
 
             _agentRef = newAgent;
+        }
+
+        /// Recolor a transient set of cells (e.g. the 14 face-neighbor
+        /// candidates of the agent). Previously-highlighted cells outside
+        /// the new set are reset to their default Passable/Blocked color.
+        /// The agent cell is never overwritten — its color is owned by
+        /// SetAgent.
+        public void SetCandidates(IDictionary<ToctaCoord, Color> overrides)
+        {
+            if (_worldRef == null) return;
+
+            foreach (var c in _highlightedCandidates)
+            {
+                if (c.Equals(_agentRef)) continue;
+                if (!_cellByCoord.TryGetValue(c, out var go) || go == null) continue;
+                bool passable = _worldRef.TypeAt(c) == ToctaType.Passable;
+                ApplyColor(go, passable ? PassableColor : BlockedColor);
+            }
+            _highlightedCandidates.Clear();
+
+            if (overrides == null) return;
+            foreach (var kv in overrides)
+            {
+                if (kv.Key.Equals(_agentRef)) continue;
+                if (!_cellByCoord.TryGetValue(kv.Key, out var go) || go == null) continue;
+                ApplyColor(go, kv.Value);
+                _highlightedCandidates.Add(kv.Key);
+            }
         }
 
         private static void ApplyColor(GameObject go, Color color)
@@ -191,6 +220,7 @@ namespace Magi.LedgeRPG
                 Destroy(transform.GetChild(i).gameObject);
             _cells.Clear();
             _cellByCoord.Clear();
+            _highlightedCandidates.Clear();
         }
 
         private void OnDestroy()
