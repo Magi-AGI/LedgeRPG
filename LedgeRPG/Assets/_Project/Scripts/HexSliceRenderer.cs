@@ -22,6 +22,7 @@ namespace Magi.LedgeRPG
         private static readonly Color BlockedColor  = new Color(0.35f, 0.35f, 0.35f, 1.00f);
         private static readonly Color AgentColor    = new Color(0.30f, 0.85f, 1.00f, 1.00f);
         private static readonly Color GhostColor    = new Color(0.70f, 0.65f, 0.55f, 0.35f);
+        private static readonly Color EdgeColor     = new Color(0.05f, 0.05f, 0.05f, 1.00f);
 
         private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
         private static readonly int ColorId     = Shader.PropertyToID("_Color");
@@ -29,6 +30,7 @@ namespace Magi.LedgeRPG
         private Mesh _sharedMesh;
         private Material _opaqueMaterial;
         private Material _ghostMaterial;
+        private Material _edgeMaterial;
 
         private readonly List<GameObject> _cells = new();
 
@@ -62,7 +64,7 @@ namespace Magi.LedgeRPG
             }
         }
 
-        private void Spawn(Vector3 position, Color color, Material material, string name)
+        private void Spawn(Vector3 position, Color color, Material faceMaterial, string name)
         {
             var go = new GameObject(name);
             go.transform.SetParent(transform, worldPositionStays: false);
@@ -71,21 +73,22 @@ namespace Magi.LedgeRPG
             var mf = go.AddComponent<MeshFilter>();
             mf.sharedMesh = _sharedMesh;
             var mr = go.AddComponent<MeshRenderer>();
-            mr.sharedMaterial = material;
+            mr.sharedMaterials = new[] { faceMaterial, _edgeMaterial };
 
             var block = new MaterialPropertyBlock();
             block.SetColor(BaseColorId, color);
             block.SetColor(ColorId, color);
-            mr.SetPropertyBlock(block);
+            mr.SetPropertyBlock(block, 0);
 
             _cells.Add(go);
         }
 
         private void EnsureSharedAssets()
         {
-            if (_sharedMesh      == null) _sharedMesh      = ToctaMeshFactory.Build();
+            if (_sharedMesh      == null) _sharedMesh      = ToctaMeshFactory.BuildWithEdges();
             if (_opaqueMaterial  == null) _opaqueMaterial  = CreateOpaqueMaterial();
             if (_ghostMaterial   == null) _ghostMaterial   = CreateTransparentMaterial();
+            if (_edgeMaterial    == null) _edgeMaterial    = CreateEdgeMaterial();
         }
 
         private static Material CreateOpaqueMaterial()
@@ -109,6 +112,20 @@ namespace Magi.LedgeRPG
             return mat;
         }
 
+        private static Material CreateEdgeMaterial()
+        {
+            // Unlit so outlines stay legible regardless of scene lighting.
+            // URP "Unlit" falls back to the built-in Unlit/Color on legacy.
+            var shader = Shader.Find("Universal Render Pipeline/Unlit")
+                      ?? Shader.Find("Unlit/Color");
+            var mat = new Material(shader) { enableInstancing = true };
+            mat.SetColor(BaseColorId, EdgeColor);
+            mat.SetColor(ColorId,     EdgeColor);
+            // Bias outline draw order to sit on top of the face submesh.
+            mat.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Geometry + 1;
+            return mat;
+        }
+
         public void Clear()
         {
             for (int i = transform.childCount - 1; i >= 0; --i)
@@ -122,6 +139,7 @@ namespace Magi.LedgeRPG
             if (_sharedMesh     != null) Destroy(_sharedMesh);
             if (_opaqueMaterial != null) Destroy(_opaqueMaterial);
             if (_ghostMaterial  != null) Destroy(_ghostMaterial);
+            if (_edgeMaterial   != null) Destroy(_edgeMaterial);
         }
     }
 }
