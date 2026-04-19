@@ -77,6 +77,19 @@ namespace Magi.LedgeRPG
             go.transform.SetParent(transform, worldPositionStays: false);
             go.transform.localPosition = position;
 
+            // Attach the collider *before* the MeshFilter. When MeshCollider
+            // is added to a GameObject that already has a MeshFilter, Unity
+            // auto-initialises its sharedMesh from that filter — and our
+            // render mesh has a Lines submesh (the outline), which throws
+            // "Failed getting triangles. Submesh topology is lines or points".
+            // Adding the collider first on a filter-less GameObject lets us
+            // assign the triangles-only collision mesh explicitly.
+            if (AddColliders)
+            {
+                var mc = go.AddComponent<MeshCollider>();
+                mc.sharedMesh = _collisionMesh;
+            }
+
             var mf = go.AddComponent<MeshFilter>();
             mf.sharedMesh = _sharedMesh;
             var mr = go.AddComponent<MeshRenderer>();
@@ -86,12 +99,6 @@ namespace Magi.LedgeRPG
             block.SetColor(BaseColorId, color);
             block.SetColor(ColorId, color);
             mr.SetPropertyBlock(block, 0);
-
-            if (AddColliders)
-            {
-                var mc = go.AddComponent<MeshCollider>();
-                mc.sharedMesh = _collisionMesh;
-            }
 
             _cells.Add(go);
         }
