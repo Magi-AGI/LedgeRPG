@@ -5,10 +5,11 @@ using UnityEngine.InputSystem;
 namespace Magi.LedgeRPG
 {
     /// Mouse-wheel zoom between the lattice scales exposed by ScaledLattice.
-    /// Scroll up steps to a coarser scale, scroll down steps finer. Fires
-    /// <see cref="OnScaleChanged"/> so listeners (the bootstrap) can swap the
-    /// renderer's content without this controller knowing anything about
-    /// LatticeWorld or aggregates.
+    /// Scroll DOWN steps to a coarser (zoomed-out) scale, scroll UP steps
+    /// finer (zoomed-in) — matches the intuition that scrolling away pulls
+    /// the camera back. Fires <see cref="OnScaleChanged"/> so listeners (the
+    /// bootstrap) can swap the renderer's content without this controller
+    /// knowing anything about LatticeWorld or aggregates.
     ///
     /// Mirrors ScaleZoomController from the 2D paper-mirror, but uses an int
     /// scale index instead of LedgeRPG.Scaled.ScaleLevel — the 3D substrate
@@ -47,12 +48,12 @@ namespace Magi.LedgeRPG
             if (_scrollAccumulator >= ScrollThreshold)
             {
                 _scrollAccumulator = 0f;
-                SetScale(Current + 1);
+                SetScale(Current - 1); // scroll up → finer
             }
             else if (_scrollAccumulator <= -ScrollThreshold)
             {
                 _scrollAccumulator = 0f;
-                SetScale(Current - 1);
+                SetScale(Current + 1); // scroll down → coarser
             }
         }
     }
