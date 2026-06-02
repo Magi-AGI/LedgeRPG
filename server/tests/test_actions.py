@@ -56,9 +56,13 @@ def test_examine_on_food_emits_food_consumed_and_energy_restore():
     assert world.food_remaining == 0
 
 
-def test_rest_emits_no_deltas_but_advances_step():
+def test_rest_drains_energy_and_advances_step():
     world = World(seed=42)
     start_step = world.step
+    start_e = world.energy
     deltas = world.apply_action("rest")
-    assert deltas == []
     assert world.step == start_step + 1
+    assert world.energy == start_e - 0.02
+    assert len(deltas) == 1
+    assert deltas[0]["kind"] == "energy"
+    assert deltas[0]["delta"] == -0.02

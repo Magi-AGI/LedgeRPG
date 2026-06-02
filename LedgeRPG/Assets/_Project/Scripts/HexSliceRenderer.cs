@@ -35,6 +35,7 @@ namespace Magi.LedgeRPG
 
         private readonly List<GameObject> _cells = new();
         private readonly Dictionary<ToctaCoord, GameObject> _cellByCoord = new();
+        private readonly Dictionary<GameObject, ToctaCoord> _coordByCell = new();
         private readonly HashSet<ToctaCoord> _highlightedCandidates = new();
         private LatticeWorld _worldRef;
         private ToctaCoord _agentRef;
@@ -65,6 +66,7 @@ namespace Magi.LedgeRPG
                 var go = Spawn(new Vector3((float)wx, (float)wy, (float)wz), color, _opaqueMaterial,
                                name: $"Cell {c.X},{c.Y},{c.Z}");
                 _cellByCoord[c] = go;
+                _coordByCell[go] = c;
             }
 
             if (ghostCells != null)
@@ -220,7 +222,18 @@ namespace Magi.LedgeRPG
                 Destroy(transform.GetChild(i).gameObject);
             _cells.Clear();
             _cellByCoord.Clear();
+            _coordByCell.Clear();
             _highlightedCandidates.Clear();
+        }
+
+        /// Reverse lookup: given a cell GameObject (typically from a
+        /// raycast hit), return the ToctaCoord it represents. Returns
+        /// false for ghost cells, non-cell hits, or post-Clear stale GOs.
+        public bool TryGetCoord(GameObject go, out ToctaCoord coord)
+        {
+            if (go != null && _coordByCell.TryGetValue(go, out coord)) return true;
+            coord = default;
+            return false;
         }
 
         private void OnDestroy()

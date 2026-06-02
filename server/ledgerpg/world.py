@@ -11,6 +11,7 @@ TILE_FOOD = "food"
 TILE_OBSTACLE = "obstacle"
 
 MOVE_ENERGY_COST = 0.05
+REST_ENERGY_COST = 0.02
 
 TERMINAL_TARGET_REACHED = "target_reached"
 TERMINAL_STEP_LIMIT = "step_limit"
@@ -88,7 +89,7 @@ class World:
         elif action_name == "examine":
             deltas = self._apply_examine()
         else:  # rest
-            deltas = []
+            deltas = self._apply_rest()
 
         self._check_termination()
         return deltas
@@ -115,6 +116,13 @@ class World:
             self.visited.add(self.agent_pos)
             deltas.append({"kind": "tile-discovered", "at": [new_q, new_r]})
         return deltas
+
+    def _apply_rest(self) -> list[dict]:
+        old_e = self.energy
+        self.energy = max(0.0, self.energy - REST_ENERGY_COST)
+        return [
+            {"kind": "energy", "delta": -REST_ENERGY_COST, "from": old_e, "to": self.energy},
+        ]
 
     def _apply_examine(self) -> list[dict]:
         q, r = self.agent_pos
